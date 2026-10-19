@@ -1,56 +1,85 @@
-# Welcome to your Expo app 👋
+# expo-router `Stack.Toolbar.Button image` ignored on left/right placements
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Minimal repro for two related issues with custom images in Expo Router native
+stack toolbars (`expo-router` toolbar API, iOS):
 
-## Get started
+1. **`Stack.Toolbar.Button image` is silently ignored on `placement="left"` /
+   `placement="right"`.** The decoded image never renders; the button falls back
+   to the SF Symbol given via `icon`. The same `image` prop **works** on
+   `placement="bottom"`.
+2. **`icon={{ uri }}` (image source) renders at the bitmap's natural pixel
+   size** — a 512px source renders ~512pt tall and overflows the navigation
+   bar. There is no sizing option on the button.
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Run
 
 ```bash
-npm run reset-project
+npm install
+npx expo run:ios
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Requires a dev build (the native toolbar API is not available in Expo Go).
+Open the app on iOS:
 
-### Other setup steps
+- **Top-right, first button** — `image` prop fed with a decoded 36px
+  `expo-image` ref (`useImage(url, { maxWidth: 36, maxHeight: 36 })`).
+  *Expected:* 36pt avatar. *Actual:* SF Symbol placeholder; the decoded image
+  is ignored.
+- **Top-right, second button** — `icon={{ uri }}` with a 512px source.
+  *Actual:* renders at natural pixel size (~512pt), overflowing the bar.
+- **Bottom toolbar** — the same `image` prop without a placement.
+  *Actual:* works (36pt image in the bottom toolbar).
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Key screen
 
-## Learn more
+[`src/app/index.tsx`](src/app/index.tsx) — a single screen with all three
+buttons and on-screen expected/actual notes.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Tested versions
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Repro scaffolded with: `expo ~58.0.16`, `expo-router ~58.0.24`,
+`react-native-screens ~4.30.0`, `react-native 0.88.0`, iOS Simulator
+(iPhone 17 Pro Max, iOS 26.5), New Architecture.
 
-## Join the community
+Also reproduced on: `expo 57.0.17`, `expo-router 57.0.17`,
+`react-native-screens 4.25.2`, `react-native 0.86.3`.
 
-Join our community of developers creating universal apps.
+## Code-path analysis (why it drops the image)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+For `placement="left"` / `"right"`, toolbar children are converted into
+`unstable_headerLeftItems` / `unstable_headerRightItems` options
+(`expo-router/build/layouts/stack-utils/toolbar/processHeaderItemsForPlatform.ios.js`),
+then processed by `useHeaderConfigProps` into
+`headerLeftBarButtonItems` / `headerRightBarButtonItems`
+(`expo-router/build/react-navigation/native-stack/views/useHeaderConfigProps.js`),
+and rendered natively by react-native-screens
+(`src/components/helpers/prepareHeaderBarButtonItems.ts` →
+`ios/RNSBarButtonItem.mm`).
+
+That whole pipeline only understands these icon shapes:
+
+- `icon.type === 'sfSymbol'` → `sfSymbolName`
+- `icon.type === 'imageSource'` / `'templateSource'` → `imageSource` /
+  `templateSource` (loaded by the RN image loader at natural size — no
+  downscaling)
+- `icon.type === 'xcasset'` → `xcassetName`
+
+The button's `image` prop (an `expo-image` `SharedRef<'image'>` /
+`ImageRef`) is carried through the item object but **never read** by any
+consumer on this path. It is only consumed by expo-router's own Swift toolbar
+host (`RouterToolbarItemView.swift` reads `customImage`), which is mounted for
+`placement="bottom"` — which is why the bottom toolbar works.
+
+Suggested directions (either would fix it):
+
+- Map the `image` prop through the left/right pipeline (requires a
+  SharedRef-capable bar button item in react-native-screens), or
+- Route left/right buttons through expo-router's own toolbar host, or
+- At minimum, `console.warn` (dev only) when `image` is used with a
+  left/right placement, matching the existing warning for `icon` image
+  sources on `placement="bottom"`.
+
+## Related
+
+- Custom RN views in header slots (`Stack.Toolbar.View`) have separate
+  mounting issues on this stack: expo/expo#51825.

@@ -1,98 +1,61 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View } from "react-native";
+import { Link, Stack } from "expo-router";
+import { useImage } from "expo-image";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+const AVATAR_URL = "https://picsum.photos/id/237/512/512";
 
 export default function HomeScreen() {
+  const image = useImage(AVATAR_URL, { maxWidth: 36, maxHeight: 36 });
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <View style={styles.container}>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityLabel="Image prop button, right placement"
+          icon="person.crop.circle.fill"
+          image={image}
+          onPress={() => {}}
+        />
+        <Stack.Toolbar.Button
+          accessibilityLabel="Icon source button, right placement"
+          icon={{ uri: AVATAR_URL }}
+          onPress={() => {}}
+        />
+      </Stack.Toolbar>
+      <Stack.Toolbar>
+        <Stack.Toolbar.Button
+          accessibilityLabel="Image prop button, bottom placement"
+          icon="person.crop.circle.fill"
+          image={image}
+          onPress={() => {}}
+        />
+      </Stack.Toolbar>
+      <Text style={styles.text}>
+        {
+          "Right toolbar, first button: `image` prop with a decoded 36px expo-image ref. Expected: 36pt avatar. Actual: SF Symbol placeholder, the decoded image is ignored.\nRight toolbar, second button: `icon={{ uri }}` with a 512px source. Actual: renders at natural pixel size and overflows the bar.\nBottom toolbar: same `image` prop, no placement. Actual: works."
+        }
+      </Text>
+      <Link href="https://github.com/expo/expo" style={styles.link}>
+        upstream issue
+      </Link>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 24,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  text: {
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 20,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  link: {
+    color: "#0a7ea4",
   },
 });
